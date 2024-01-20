@@ -334,17 +334,22 @@ Value *LogErrorV(const char *Str) {
 // ---------------------------------------------------------------------------
 Value *ProgramAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
+  for(auto& Stmt : Stmts) {
+    Stmt->codegen(F);
+  }
   return nullptr;
 }
 
 Value *AssignStmtAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
+
   return nullptr;
 }
 
 Value *ExprStmtAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
-  return nullptr;
+  return Val->codegen(F);
+  // return nullptr;
 }
 
 Value *NumberASTNode::codegen(Function* F) {
@@ -582,7 +587,7 @@ int main(const int argc, const char** argv) {
   Builder.CreateRet(nullptr);
 
   // NOTE: You may want to uncomment this line to see the LLVM IR you have generated
-  // TheModule->print(errs(), nullptr);
+  TheModule->print(errs(), nullptr);
 
   // Initialize the JIT, compile the module to a function,
   // find the function and then run it.
