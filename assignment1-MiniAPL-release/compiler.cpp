@@ -240,7 +240,6 @@ static LLVMContext TheContext;
 // NOTE: You will probably want to use the Builder in the "codegen" methods
 static IRBuilder<> Builder(TheContext);
 static std::unique_ptr<Module> TheModule;
-static std::map<std::string, Value *> NamedValues;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 static std::unique_ptr<MiniAPLJIT> TheJIT;
 
@@ -342,29 +341,110 @@ Value *ProgramAST::codegen(Function* F) {
 
 Value *AssignStmtAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
-
-  return nullptr;
+  Value* rhsValue = RHS->codegen(F);
+  if (!rhsValue)
+    return nullptr;
+  string Name = GetName();
+  printf("AssignStmtAST Name, %s\n", Name.c_str());
+  ValueTable[Name] = rhsValue;
+  return rhsValue;
 }
+
 
 Value *ExprStmtAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
   return Val->codegen(F);
-  // return nullptr;
 }
 
 Value *NumberASTNode::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
-  return nullptr;
+  return ConstantInt::get(TheContext, APInt(32, Val));
 }
 
 Value *VariableASTNode::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
-  return nullptr;
+  printf("VariableASTNode Name, %s\n", Name.c_str());
+  Value *V = ValueTable[Name];
+  if (!V)
+    LogErrorV("Unknown variable name");
+  return V;
 }
 
 Value *CallASTNode::codegen(Function* F) {
-  // STUDENTS: FILL IN THIS FUNCTION
-  return nullptr;
+  // Look up the name in the global module table.
+  printf("CallASTNode Callee, %s\n", Callee.c_str());
+
+  // std::vector<Value *> ArgsV;
+  // for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+  //   ArgsV.push_back(Args[i]->codegen(F));
+  //   if (!ArgsV.back())
+  //     return nullptr;
+  // }
+  
+  if (Callee == "add") {
+    // Get the type of the result (and operands).
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    // Get an LLVM type for the flattened array.
+    auto *vec_type = VectorType::get(intTy(32), size);
+
+    // Codegen arguments.
+    Value *arg0 = Args[0]->codegen(F);
+    Value *arg1 = Args[1]->codegen(F);
+
+    // Load from the arguments.
+    arg0 = Builder.CreateLoad(vec_type, arg0);
+    arg1 = Builder.CreateLoad(vec_type, arg1);
+
+    // Construct an add (this builds a vector addition).
+    Value *add = Builder.CreateAdd(arg0, arg1);
+
+    // Allocate a vector of size `size` and type int32.
+    auto alloc = Builder.CreateAlloca(vec_type);
+    // Get a pointer to the start of the allocation.
+    // See https://releases.llvm.org/6.0.0/docs/GetElementPtr.html for more details.
+    auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    // Store the add in the destination.
+    Builder.CreateStore(add, dst);
+
+    return alloc;
+  } else if (Callee == "sub") {
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+
+    Value *arg0 = Args[0]->codegen(F);
+    Value *arg1 = Args[1]->codegen(F);
+
+    arg0 = Builder.CreateLoad(vec_type, arg0);
+    arg1 = Builder.CreateLoad(vec_type, arg1);
+
+    Value *sub = Builder.CreateSub(arg0, arg1);
+
+    auto alloc = Builder.CreateAlloca(vec_type);
+    auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    Builder.CreateStore(sub, dst);
+
+    return alloc;
+
+  } else if (Callee == "mkArray") {
+    
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality(); // 6
+    const int dim_length = type.dimensions.size();
+    auto *vec_type = VectorType::get(intTy(32), size);
+    printf("dim_length %d\n", dim_length);
+
+    Value *array_data = Args[1+dim_length]->codegen(F);
+    printf("array_data %d\n", array_data->get());
+    array_data = Builder.CreateLoad(vec_type, array_data);
+    
+    auto alloc = Builder.CreateAlloca(vec_type);
+    auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    Builder.CreateStore(array_data, dst);
+
+    return alloc;
+  }
 }
 
 // ---------------------------------------------------------------------------
