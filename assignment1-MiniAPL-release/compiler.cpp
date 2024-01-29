@@ -353,6 +353,8 @@ Value *AssignStmtAST::codegen(Function* F) {
 
 Value *ExprStmtAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
+  printf("ExprStmtAST\n");
+  Val->Print(std::cout);
   return Val->codegen(F);
 }
 
@@ -434,14 +436,55 @@ Value *CallASTNode::codegen(Function* F) {
     const int dim_length = type.dimensions.size();
     auto *vec_type = VectorType::get(intTy(32), size);
     printf("dim_length %d\n", dim_length);
-
-    Value *array_data = Args[1+dim_length]->codegen(F);
-    printf("array_data %d\n", array_data->get());
-    array_data = Builder.CreateLoad(vec_type, array_data);
+    std::vector<Value *> ArgsV;
+    for (unsigned i = 1+dim_length, e = Args.size(); i != e; ++i) {
+      ArgsV.push_back(Args[i]->codegen(F));
+    }
+    
+    auto array_data = Builder.CreateAlloca(vec_type, size);
+    for (unsigned i = 0; i < ArgsV.size(); ++i) {
+      auto dst = Builder.CreateGEP(array_data, {intConst(32, 0), intConst(32, i)});
+      Builder.CreateStore(ArgsV[i], dst);
+    }
     
     auto alloc = Builder.CreateAlloca(vec_type);
     auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
     Builder.CreateStore(array_data, dst);
+
+    return alloc;
+  } else if (Callee == "neg") {
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+
+    Value *arg0 = Args[0]->codegen(F);
+
+    arg0 = Builder.CreateLoad(vec_type, arg0);
+
+    Value* neg_arg0 = Builder.CreateMul(arg0, intConst(32, -1));
+
+    auto alloc = Builder.CreateAlloca(vec_type);
+    auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    Builder.CreateStore(neg_arg0, dst);
+
+    return alloc;
+  } else if (Callee == "exp") {
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+    auto *int_type = intTy(32);
+
+    Value *arg0 = Args[0]->codegen(F);
+    arg0 = Builder.CreateLoad(vec_type, arg0);
+
+    Value *power = Args[1]->codegen(F);
+
+    // how to iterate from 0 to power?
+
+
+    auto alloc = Builder.CreateAlloca(vec_type);
+    auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    Builder.CreateStore(arg0, dst);
 
     return alloc;
   }

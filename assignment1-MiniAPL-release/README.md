@@ -101,5 +101,3 @@ As extra credit implement the following additional functions:
 
   * `expand(<array>, size)` - Turn an N dimensional array into an N+1 dimensional array by duplicating the elements of the last dimension `size` times.
   * `concat(<array>, <array>, dimension)` - Concatenate the two input arrays along the given dimension.
-
-export LLVM_CONFIG=/Users/guomingfei/Desktop/cs343d-asst/install/bin/llvm-config
