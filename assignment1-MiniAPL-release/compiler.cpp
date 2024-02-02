@@ -860,6 +860,86 @@ Value *CallASTNode::codegen(Function* F) {
     codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
 
     return alloc;
+  } else if (Callee == "expand") {
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+    auto *original_vec_type = VectorType::get(intTy(32), size / type.innermost_dimension);
+
+    cout << "size " << size << " innermost " << type.innermost_dimension << endl;
+    for (int i=0;i<type.dimensions.size();i++){
+      cout << "dimension " << i << " " << type.dimensions[i] << endl;
+    }
+    // dimension 0 3
+    // dimension 1 1
+
+    Value *arg0 = Args[0]->codegen(F);
+
+    arg0 = Builder.CreateLoad(original_vec_type, arg0);
+
+    int nth_dim = type.innermost_dimension;
+    int n_plus_1 = type.dimensions[type.dimensions.size() - 1];
+
+    int prev_dims = 1;
+    for (int i = 0; i < type.dimensions.size() - 2; i++) {
+      prev_dims *= type.dimensions[i];
+    }
+
+    auto alloc = Builder.CreateAlloca(vec_type);
+    // prev dim
+    // n_plus_1
+    for (int i = 0; i < nth_dim * n_plus_1; i++) {
+      int k = i / nth_dim;
+      for (int j = 0; j < prev_dims; j++) {
+        Value *element = Builder.CreateExtractElement(arg0, j * n_plus_1 + k);
+        for (int q = 0; q < nth_dim; q++) {
+          auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, j * n_plus_1 * nth_dim + n_plus_1*q + k)});
+          Builder.CreateStore(element, dst);
+        }
+      }
+    }
+    // for (int i = 0; i < nth_dim; i++) {
+    //   for (int j = 0; j < prev_dims; j++) {
+    //     Value *element = Builder.CreateExtractElement(arg0, j * nth_dim + i);
+    //     for (int k = 0; k < n_plus_1; k++) {
+    //       auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, j * n_plus_1 + n_plus_1*k + i)});
+    //       Builder.CreateStore(element, dst);
+    //     }
+    //   }
+    // }
+    // for (int i = 0; i < n_plus_1; i++) {
+    //   for (int j = 0; j < prev_dims; j++) {
+    //     Value *element = Builder.CreateExtractElement(arg0, j * n_plus_1 + i);
+    //     for (int k = 0; k < nth_dim; k++) {
+    //       auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, j * n_plus_1 + n_plus_1*k + i)});
+    //       Builder.CreateStore(element, dst);
+    //     }
+    //   }
+    // }
+
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    return alloc;
+
+    // // // kprintf_str(m, bb, "[");
+    // // // kprintf_val(m, bb, arg0);
+    // // // kprintf_str(m, bb, "]");
+    // for (unsigned i = 0; i < size; ++i) {
+    //   cout << "i " << i << endl;
+    //   // Value* element_ptr = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, i)});
+    //   // Value* element_i = Builder.CreateLoad(element_ptr);
+    //   Value* element_i = Builder.CreateExtractElement(arg0, i);
+    //   // Value* arg_i = Args[i] -> codegen(F);
+    //   kprintf_str(m, bb, "[");
+    //   kprintf_val(m, bb, element_i);
+    //   kprintf_str(m, bb, "]");
+    // }
+
+    // Value* neg_ones = Builder.CreateVectorSplat(size, intConst(32, -1));
+    // Value* neg_arg0 = Builder.CreateMul(arg0, neg_ones);
+    // auto alloc = Builder.CreateAlloca(vec_type);
+    // auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    // Builder.CreateStore(neg_arg0, dst);
   }
   return nullptr;
 }
@@ -959,6 +1039,19 @@ void SetType(map<ASTNode*, MiniAPLArrayType>& Types, ASTNode* Expr) {
       Types[Expr] = Types[Call->Args.back().get()];
       Types[Expr].innermost_dimension = Types[Expr].dimensions[Types[Expr].dimensions.size() - 1];
       Types[Expr].dimensions.pop_back();
+    } else if (Call->Callee == "expand") {
+      Types[Expr] = Types[Call->Args.at(0).get()];
+      // for (int i = 0; i < Types[Expr].dimensions.size(); i++) {
+      //   cout << "exppppppand dimension " << i << " " << Types[Expr].dimensions[i] << endl;
+      // }
+      int expand_times = static_cast<NumberASTNode*>(Call->Args.at(1).get())->Val;
+      int last_dim = Types[Expr].dimensions[Types[Expr].dimensions.size() - 1];
+      Types[Expr].innermost_dimension = expand_times;
+      // here innermost_dimension is the expanded dimension, not actual innermost dimension
+      // just use the same name for simplicity
+      Types[Expr].dimensions.pop_back();
+      Types[Expr].dimensions.push_back(expand_times);
+      Types[Expr].dimensions.push_back(last_dim);
     } else if (Call->Callee == "add" || Call->Callee == "sub") {
       Types[Expr] = Types[Call->Args.at(0).get()];
     } else {

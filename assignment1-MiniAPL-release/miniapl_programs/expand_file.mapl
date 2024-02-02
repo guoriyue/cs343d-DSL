@@ -1,0 +1,2 @@
+assign A = mkArray(2, 2, 2, 1, 2, 3, 4);
+expand(A, 3);
