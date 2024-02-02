@@ -79,6 +79,9 @@ class MiniAPLArrayType {
 
     vector<int> dimensions;
     int innermost_dimension;
+    int concat_dim1;
+    int concat_dim2;
+    int dim_to_concat;
 
     int Cardinality() {
       int C = 1;
@@ -346,7 +349,7 @@ Value *AssignStmtAST::codegen(Function* F) {
   if (!rhsValue)
     return nullptr;
   string Name = GetName();
-  printf("AssignStmtAST Name, %s\n", Name.c_str());
+  // printf("AssignStmtAST Name, %s\n", Name.c_str());
   ValueTable[Name] = rhsValue;
   return rhsValue;
 }
@@ -354,8 +357,8 @@ Value *AssignStmtAST::codegen(Function* F) {
 
 Value *ExprStmtAST::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
-  printf("ExprStmtAST\n");
-  Val->Print(std::cout);
+  // printf("ExprStmtAST\n");
+  // Val->Print(std::cout);
   return Val->codegen(F);
 }
 
@@ -366,7 +369,7 @@ Value *NumberASTNode::codegen(Function* F) {
 
 Value *VariableASTNode::codegen(Function* F) {
   // STUDENTS: FILL IN THIS FUNCTION
-  printf("VariableASTNode Name, %s\n", Name.c_str());
+  // printf("VariableASTNode Name, %s\n", Name.c_str());
   Value *V = ValueTable[Name];
   if (!V)
     LogErrorV("Unknown variable name");
@@ -418,7 +421,7 @@ void codegen_print_array(vector<int> dims, Value* array_data, Module *m, BasicBl
 }
 Value *CallASTNode::codegen(Function* F) {
   // Look up the name in the global module table.
-  printf("CallASTNode Callee, %s\n", Callee.c_str());
+  // printf("CallASTNode Callee, %s\n", Callee.c_str());
 
   // std::vector<Value *> ArgsV;
   // for (unsigned i = 0, e = Args.size(); i != e; ++i) {
@@ -471,6 +474,7 @@ Value *CallASTNode::codegen(Function* F) {
     // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
     Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
 
     return alloc;
   } else if (Callee == "sub") {
@@ -493,6 +497,7 @@ Value *CallASTNode::codegen(Function* F) {
     // codegen_print_array(type.dimensions, sub, m, bb, 0, 0);
     Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
 
     return alloc;
 
@@ -502,8 +507,8 @@ Value *CallASTNode::codegen(Function* F) {
     const int size = type.Cardinality(); // 6
     const int dim_length = type.dimensions.size();
     auto *vec_type = VectorType::get(intTy(32), size);
-    printf("dim_length %d\n", dim_length);
-    printf("tensor size %d\n", size);
+    // printf("dim_length %d\n", dim_length);
+    // printf("tensor size %d\n", size);
     // printf("Args size %d\n", Args.size());
     std::vector<Value *> ArgsV;
     for (unsigned i = 1+dim_length, e = Args.size(); i != e; ++i) {
@@ -555,6 +560,7 @@ Value *CallASTNode::codegen(Function* F) {
     
     Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
 
     return alloc;
   } else if (Callee == "exp") {
@@ -563,7 +569,7 @@ Value *CallASTNode::codegen(Function* F) {
     auto *vec_type = VectorType::get(intTy(32), size);
     // auto *int_type = intTy(32);
 
-    cout << "size " << size << endl;
+    // cout << "size " << size << endl;
 
     Value *arg0 = Args[0]->codegen(F);
     // arg0 = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, 0)});
@@ -730,6 +736,7 @@ Value *CallASTNode::codegen(Function* F) {
     // // // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
     Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg_print, m, AfterBB, 0, 0);
+    kprintf_str(m, AfterBB, "\n");
 
     // // Value* resultVector = Result;
 
@@ -807,6 +814,7 @@ Value *CallASTNode::codegen(Function* F) {
     
     // Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg0, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
 
     return nullptr;
   } else if (Callee == "reduce") {
@@ -835,7 +843,7 @@ Value *CallASTNode::codegen(Function* F) {
     // auto *new_vec_type = VectorType::get(intTy(32), size);
     auto alloc = Builder.CreateAlloca(vec_type);
 
-    cout << "size " << size << " innermost " << innermost << endl;
+    // cout << "size " << size << " innermost " << innermost << endl;
 
     for (int i = 0; i < size; i++) {
       Value *sum = intConst(32, 0);
@@ -858,6 +866,7 @@ Value *CallASTNode::codegen(Function* F) {
     // codegen_print_array(type.dimensions, sub, m, bb, 0, 0);
     Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
 
     return alloc;
   } else if (Callee == "expand") {
@@ -866,10 +875,10 @@ Value *CallASTNode::codegen(Function* F) {
     auto *vec_type = VectorType::get(intTy(32), size);
     auto *original_vec_type = VectorType::get(intTy(32), size / type.innermost_dimension);
 
-    cout << "size " << size << " innermost " << type.innermost_dimension << endl;
-    for (int i=0;i<type.dimensions.size();i++){
-      cout << "dimension " << i << " " << type.dimensions[i] << endl;
-    }
+    // cout << "size " << size << " innermost " << type.innermost_dimension << endl;
+    // for (int i=0;i<type.dimensions.size();i++){
+    //   cout << "dimension " << i << " " << type.dimensions[i] << endl;
+    // }
     // dimension 0 3
     // dimension 1 1
 
@@ -919,6 +928,7 @@ Value *CallASTNode::codegen(Function* F) {
 
     Value* arg_print = Builder.CreateLoad(vec_type, alloc);
     codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
     return alloc;
 
     // // // kprintf_str(m, bb, "[");
@@ -940,6 +950,60 @@ Value *CallASTNode::codegen(Function* F) {
     // auto alloc = Builder.CreateAlloca(vec_type);
     // auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
     // Builder.CreateStore(neg_arg0, dst);
+  } else if (Callee == "concat") {
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+    auto *original_vec_type_1 = VectorType::get(intTy(32), size * type.concat_dim1/ (type.concat_dim1 + type.concat_dim2));
+    auto *original_vec_type_2 = VectorType::get(intTy(32), size * type.concat_dim2/ (type.concat_dim1 + type.concat_dim2));
+
+    Value *arg0 = Args[0]->codegen(F);
+    Value *arg1 = Args[1]->codegen(F);
+    int dim_to_concat = type.dim_to_concat;
+
+    arg0 = Builder.CreateLoad(original_vec_type_1, arg0);
+    arg1 = Builder.CreateLoad(original_vec_type_2, arg1);
+    // arg2 = Builder.CreateLoad(vec_type, arg2);
+
+    int prev_dims = 1;
+    for (int i = 0; i < dim_to_concat; i++) {
+      prev_dims *= type.dimensions[i];
+    }
+    int next_dims = 1;
+    for (int i = dim_to_concat + 1; i < type.dimensions.size(); i++) {
+      next_dims *= type.dimensions[i];
+    }
+
+    auto alloc = Builder.CreateAlloca(vec_type);
+
+    for (int i = 0; i < type.concat_dim1; i++) {
+      for (int j = 0; j < prev_dims; j++) {
+        for (int k = 0; k < next_dims; k++) {
+          Value *element = Builder.CreateExtractElement(arg0, j * type.concat_dim1 * next_dims + i * next_dims + k);
+          auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, j * (type.concat_dim1 + type.concat_dim2) * next_dims + i * next_dims + k)});
+          Builder.CreateStore(element, dst);
+        }
+      }
+    }
+
+    for (int i = 0; i < type.concat_dim2; i++) {
+      for (int j = 0; j < prev_dims; j++) {
+        for (int k = 0; k < next_dims; k++) {
+          Value *element = Builder.CreateExtractElement(arg1, j * type.concat_dim2 * next_dims + i * next_dims + k);
+          auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, j * (type.concat_dim1 + type.concat_dim2) * next_dims + type.concat_dim1 * next_dims + i * next_dims + k)});
+          Builder.CreateStore(element, dst);
+        }
+      }
+    }
+
+
+
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+    kprintf_str(m, bb, "\n");
+    return alloc;
+  } else {
+    return nullptr;
   }
   return nullptr;
 }
@@ -1052,6 +1116,25 @@ void SetType(map<ASTNode*, MiniAPLArrayType>& Types, ASTNode* Expr) {
       Types[Expr].dimensions.pop_back();
       Types[Expr].dimensions.push_back(expand_times);
       Types[Expr].dimensions.push_back(last_dim);
+    } else if (Call->Callee == "concat") {
+      // cout << "concat" << endl;
+      auto dim1 = Types[Call->Args.at(0).get()].dimensions;
+      auto dim2 = Types[Call->Args.at(1).get()].dimensions;
+      int concat_dim = static_cast<NumberASTNode*>(Call->Args.at(2).get())->Val;
+      // for (int i = 0; i < dim1.size(); i++) {
+      //   cout << "dim1 " << i << " " << dim1[i] << endl;
+      // }
+      // for (int i = 0; i < dim2.size(); i++) {
+      //   cout << "dim2 " << i << " " << dim2[i] << endl;
+      // }
+      // cout << "concat_dim " << concat_dim << endl;
+      auto final_dim = dim1;
+      final_dim[concat_dim] += dim2[concat_dim];
+      Types[Expr] = Types[Call->Args.at(0).get()];
+      Types[Expr].dimensions = final_dim;
+      Types[Expr].concat_dim1 = dim1[concat_dim];
+      Types[Expr].concat_dim2 = dim2[concat_dim];
+      Types[Expr].dim_to_concat = concat_dim;
     } else if (Call->Callee == "add" || Call->Callee == "sub") {
       Types[Expr] = Types[Call->Args.at(0).get()];
     } else {
