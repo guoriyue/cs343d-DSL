@@ -8,7 +8,8 @@ RUN apt-get update && \
     g++-7 \
     llvm-${LLVM_VERSION} \
     llvm-${LLVM_VERSION}-dev \
-    clang-${LLVM_VERSION}
+    clang-${LLVM_VERSION} \
+    gdb
 
 # Create an alias from llvm-config-${LLVM_VERSION} to llvm-config
 RUN ln -s /usr/bin/llvm-config-${LLVM_VERSION} /usr/bin/llvm-config

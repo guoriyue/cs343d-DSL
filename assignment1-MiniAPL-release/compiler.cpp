@@ -78,6 +78,7 @@ class MiniAPLArrayType {
   public:
 
     vector<int> dimensions;
+    int innermost_dimension;
 
     int Cardinality() {
       int C = 1;
@@ -372,6 +373,49 @@ Value *VariableASTNode::codegen(Function* F) {
   return V;
 }
 
+void codegen_print_array(vector<int> dims, Value* array_data, Module *m, BasicBlock *bb, unsigned dim, unsigned prefix) {
+  kprintf_str(m, bb, "[");
+  unsigned current_dim = dims[dim];
+  int prev_dim = 1;
+
+  // 2 3 4
+  // 12
+  for (unsigned i = dim + 1; i < dims.size(); ++i) {
+    prev_dim *= dims[i];
+  }
+  // cout << "current_dim " << current_dim << " prev_dim " << prev_dim << endl;
+
+  // for (unsigned i = 0; i < size; ++i) {
+    //   cout << "i " << i << endl;
+    //   // Value* element_ptr = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, i)});
+    //   // Value* element_i = Builder.CreateLoad(element_ptr);
+    //   Value* element_i = Builder.CreateExtractElement(arg0, i);
+    //   // Value* arg_i = Args[i] -> codegen(F);
+    //   kprintf_str(m, bb, "[");
+    //   kprintf_val(m, bb, element_i);
+    //   kprintf_str(m, bb, "]");
+    // }
+
+
+  for (unsigned i = 0; i < current_dim; ++i) {
+    if (dim == dims.size() - 1) {
+      // cout << "prefix " << prefix << " i " << i << endl;
+      // Value* element_ptr = Builder.CreateGEP(array_data, {intConst(32, 0), intConst(32, prefix + i)});
+      // // cout << "after gep" << endl;
+      // Value* element_i = Builder.CreateLoad(element_ptr);
+      Value* element_i = Builder.CreateExtractElement(array_data, prefix + i);
+      // cout << "before kprintf_val" << endl;
+      kprintf_str(m, bb, "[");
+      kprintf_val(m, bb, element_i);
+      kprintf_str(m, bb, "]");
+      // cout << "after kprintf_val" << endl;
+    } else {
+      // cout << "recursive" << endl;
+      codegen_print_array(dims, array_data, m, bb, dim + 1, prefix + i * prev_dim);
+    }
+  }
+  kprintf_str(m, bb, "]");
+}
 Value *CallASTNode::codegen(Function* F) {
   // Look up the name in the global module table.
   printf("CallASTNode Callee, %s\n", Callee.c_str());
@@ -382,6 +426,9 @@ Value *CallASTNode::codegen(Function* F) {
   //   if (!ArgsV.back())
   //     return nullptr;
   // }
+
+  BasicBlock *bb = Builder.GetInsertBlock();
+  Module *m = TheModule.get();
   
   if (Callee == "add") {
     // Get the type of the result (and operands).
@@ -401,6 +448,8 @@ Value *CallASTNode::codegen(Function* F) {
     // Construct an add (this builds a vector addition).
     Value *add = Builder.CreateAdd(arg0, arg1);
 
+    
+
     // Allocate a vector of size `size` and type int32.
     auto alloc = Builder.CreateAlloca(vec_type);
     // Get a pointer to the start of the allocation.
@@ -408,6 +457,20 @@ Value *CallASTNode::codegen(Function* F) {
     auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
     // Store the add in the destination.
     Builder.CreateStore(add, dst);
+
+    
+
+    // for (unsigned i = 0; i < size; ++i) {
+    //   Value* element_ptr = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, i)});
+    //   Value* element_i = Builder.CreateLoad(element_ptr);
+    //   kprintf_str(m, bb, "[");
+    //   kprintf_val(m, bb, element_i);
+    //   kprintf_str(m, bb, "]");
+    // }
+
+    // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
 
     return alloc;
   } else if (Callee == "sub") {
@@ -427,6 +490,10 @@ Value *CallASTNode::codegen(Function* F) {
     auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
     Builder.CreateStore(sub, dst);
 
+    // codegen_print_array(type.dimensions, sub, m, bb, 0, 0);
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
+
     return alloc;
 
   } else if (Callee == "mkArray") {
@@ -436,22 +503,23 @@ Value *CallASTNode::codegen(Function* F) {
     const int dim_length = type.dimensions.size();
     auto *vec_type = VectorType::get(intTy(32), size);
     printf("dim_length %d\n", dim_length);
+    printf("tensor size %d\n", size);
+    // printf("Args size %d\n", Args.size());
     std::vector<Value *> ArgsV;
     for (unsigned i = 1+dim_length, e = Args.size(); i != e; ++i) {
       ArgsV.push_back(Args[i]->codegen(F));
     }
     
-    auto array_data = Builder.CreateAlloca(vec_type, size);
+    auto array_data = Builder.CreateAlloca(vec_type);
     for (unsigned i = 0; i < ArgsV.size(); ++i) {
       auto dst = Builder.CreateGEP(array_data, {intConst(32, 0), intConst(32, i)});
       Builder.CreateStore(ArgsV[i], dst);
     }
-    
-    auto alloc = Builder.CreateAlloca(vec_type);
-    auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
-    Builder.CreateStore(array_data, dst);
 
-    return alloc;
+    // codegen_print_array(type.dimensions, array_data, m, bb, 0, 0);
+    
+
+    return array_data;
   } else if (Callee == "neg") {
     MiniAPLArrayType type = TypeTable[this];
     const int size = type.Cardinality();
@@ -461,33 +529,339 @@ Value *CallASTNode::codegen(Function* F) {
 
     arg0 = Builder.CreateLoad(vec_type, arg0);
 
-    Value* neg_arg0 = Builder.CreateMul(arg0, intConst(32, -1));
+    // // // kprintf_str(m, bb, "[");
+    // // // kprintf_val(m, bb, arg0);
+    // // // kprintf_str(m, bb, "]");
+    // for (unsigned i = 0; i < size; ++i) {
+    //   cout << "i " << i << endl;
+    //   // Value* element_ptr = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, i)});
+    //   // Value* element_i = Builder.CreateLoad(element_ptr);
+    //   Value* element_i = Builder.CreateExtractElement(arg0, i);
+    //   // Value* arg_i = Args[i] -> codegen(F);
+    //   kprintf_str(m, bb, "[");
+    //   kprintf_val(m, bb, element_i);
+    //   kprintf_str(m, bb, "]");
+    // }
 
+    Value* neg_ones = Builder.CreateVectorSplat(size, intConst(32, -1));
+    Value* neg_arg0 = Builder.CreateMul(arg0, neg_ones);
     auto alloc = Builder.CreateAlloca(vec_type);
     auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
     Builder.CreateStore(neg_arg0, dst);
+
+
+    // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
+
+    
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
 
     return alloc;
   } else if (Callee == "exp") {
     MiniAPLArrayType type = TypeTable[this];
     const int size = type.Cardinality();
     auto *vec_type = VectorType::get(intTy(32), size);
-    auto *int_type = intTy(32);
+    // auto *int_type = intTy(32);
+
+    cout << "size " << size << endl;
 
     Value *arg0 = Args[0]->codegen(F);
+    // arg0 = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, 0)});
     arg0 = Builder.CreateLoad(vec_type, arg0);
+
+
+    // for (unsigned i = 0; i < size; ++i) {
+    //   cout << "i " << i << endl;
+    //   // Value* element_ptr = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, i)});
+    //   // Value* element_i = Builder.CreateLoad(element_ptr);
+    //   Value* element_i = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, i)});
+    //   element_i = Builder.CreateLoad(element_i);
+    //   // Value* element_i = Builder.CreateExtractElement(arg0, i);
+    //   element_i->print(llvm::outs());
+    //   std::cout << "\n";
+    //   // // Value* arg_i = Args[i] -> codegen(F);
+    //   // kprintf_str(m, bb, "[");
+    //   // kprintf_val(m, bb, element_i);
+    //   // kprintf_str(m, bb, "]");
+    // }
+
 
     Value *power = Args[1]->codegen(F);
 
+
+    // Value *res = Builder.CreateExp(arg0, power);
+
+    // power = Builder.CreateLoad(int_type, power);
+
+    Value *base = Args[0]->codegen(F);
+
+    base = Builder.CreateLoad(vec_type, base);
+
     // how to iterate from 0 to power?
+    Value *StartVal = intConst(32, 0); // ConstantFP::get(TheContext, APFloat(0.0));
+    // Make the new basic block for the loop header, inserting after current
+    // block.
+    Function *TheFunction = Builder.GetInsertBlock()->getParent();
+    BasicBlock *PreheaderBB = Builder.GetInsertBlock();
+    BasicBlock *LoopBB =
+        BasicBlock::Create(TheContext, "loop", TheFunction);
+    string VarName = "i_";
+    string MulName = "exp_";
+    // Insert an explicit fall through from the current block to the LoopBB.
+    Builder.CreateBr(LoopBB);
+
+    // Start insertion in LoopBB.
+    Builder.SetInsertPoint(LoopBB);
+    
+
+    // Start the PHI node with an entry for Start.
+    PHINode *Variable = Builder.CreatePHI(Type::getInt32Ty(TheContext), 2, VarName);
+    Variable->addIncoming(StartVal, PreheaderBB);
+
+    Value* ones = Builder.CreateVectorSplat(size, intConst(32, 1));
+
+    PHINode *Result = Builder.CreatePHI(vec_type, 2, MulName);
+    Result->addIncoming(ones, PreheaderBB);
+    
+
+    // Within the loop, the variable is defined equal to the PHI node.  If it
+    // shadows an existing variable, we have to restore it, so save it now.
+    Value *OldVal = ValueTable[VarName];
+    ValueTable[VarName] = Variable;
+
+    // Emit the body of the loop.  This, like any other expr, can change the
+    // current BB.  Note that we ignore the value computed by the body, but don't
+    // allow an error.
+    // if (!Body->codegen())
+    //   return nullptr;
+    // arg0 = Builder.CreateMul(arg0, base);
+    // cout << "arg0 " << endl;
+    Value* NextResult = Builder.CreateMul(Result, arg0);
+
+    Value *StepVal = intConst(32, 1); // ConstantFP::get(TheContext, APFloat(1.0));
+    // // Emit the step value.
+    // Value *StepVal = nullptr;
+    // if (Step) {
+    //   StepVal = Step->codegen();
+    //   if (!StepVal)
+    //     return nullptr;
+    // } else {
+    //   // If not specified, use 1.0.
+    //   StepVal = ConstantFP::get(*TheContext, APFloat(1.0));
+    // }
+
+    Value *NextVar = Builder.CreateAdd(Variable, StepVal, "nextvar");
+
+    // Compute the end condition.
 
 
+    // Value *EndCond = Builder.CreateICmpEQ(
+    //     NextVar, power, "loopcond");
+
+    Value *EndCond = Builder.CreateICmpEQ(
+        NextVar, power, "loopcond");
+
+    // kprintf_str(m, LoopBB, "EndCond ");
+    // kprintf_val(m, LoopBB, EndCond);
+    // kprintf_str(m, LoopBB, "\n ");
+    // kprintf_str(m, LoopBB, "NextVar ");
+    // kprintf_val(m, LoopBB, NextVar);
+    // kprintf_str(m, LoopBB, "\n ");
+    // kprintf_str(m, LoopBB, "power ");
+    // kprintf_val(m, LoopBB, power);
+    // kprintf_str(m, LoopBB, "\n ");
+    // kprintf_str(m, LoopBB, "Result ");
+    // kprintf_val(m, LoopBB, Result);
+    // kprintf_str(m, LoopBB, "\n ");
+    // kprintf_str(m, LoopBB, "NextResult ");
+    // kprintf_val(m, LoopBB, NextResult);
+    // kprintf_str(m, LoopBB, "\n ");
+
+    // if (!EndCond)
+    //   return nullptr;
+
+    // // Convert condition to a bool by comparing non-equal to 0.0.
+    // EndCond = Builder.CreateFCmpOEQ(
+    //     EndCond, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
+
+
+    // Create the "after loop" block and insert it.
+    BasicBlock *LoopEndBB = Builder.GetInsertBlock();
+    BasicBlock *AfterBB =
+        BasicBlock::Create(TheContext, "afterloop", TheFunction);
+
+    // Insert the conditional branch into the end of LoopEndBB.
+    Builder.CreateCondBr(EndCond, AfterBB, LoopBB);
+
+    // Any new code will be inserted in AfterBB.
+    Builder.SetInsertPoint(AfterBB);
+
+
+    
+    
+
+
+    // Add a new entry to the PHI node for the backedge.
+    Variable->addIncoming(NextVar, LoopEndBB);
+    Result->addIncoming(NextResult, LoopEndBB);
+
+    // Restore the unshadowed variable.
+    if (OldVal)
+      ValueTable[VarName] = OldVal;
+    else
+      ValueTable.erase(VarName);
+
+
+    // Value* pp = Builder.CreateMul(arg0, arg0);
+
+    
+
+    // // for expr always returns 0.0.
+    // return Constant::getNullValue(Type::getDoubleTy(*TheContext));
+
+    // Value* arg0_ = Builder.CreateMul(arg0, arg0);
+
+
+    // arg0 = Builder.CreateMul(arg0, base);
     auto alloc = Builder.CreateAlloca(vec_type);
     auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
-    Builder.CreateStore(arg0, dst);
+    Builder.CreateStore(NextResult, dst);
+
+    // // // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, AfterBB, 0, 0);
+
+    // // Value* resultVector = Result;
+
+    // BasicBlock *bb = Builder.GetInsertBlock();
+    // // Module *m = TheModule.get();
+    // for (unsigned i = 0; i < size; ++i) {
+    //   cout << "i " << i << endl;
+    //   // Value* element_ptr = Builder.CreateGEP(arg_print, {intConst(32, 0), intConst(32, i)});
+    //   // Value* element_i = Builder.CreateLoad(element_ptr);
+    //   // Value* element_i = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, i)});
+    //   // element_i = Builder.CreateLoad(element_i);
+    //   Value* element_i = Builder.CreateExtractElement(arg_print, i);
+    //   // element_i->print(llvm::outs());
+    //   // std::cout << "\n";
+    //   // // Value* arg_i = Args[i] -> codegen(F);
+    //   kprintf_str(m, AfterBB, "[");
+    //   kprintf_val(m, AfterBB, element_i);
+    //   kprintf_str(m, AfterBB, "]");
+    // }
+    
+
+
+
+    return alloc;
+
+
+
+
+    // Value* ones = Builder.CreateVectorSplat(size, intConst(32, -1));
+    // Value* neg_arg0 = Builder.CreateMul(arg0, ones);
+
+    // auto alloc = Builder.CreateAlloca(vec_type);
+    // auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    // // auto ptr_type = PointerType::get(vec_type, 0);
+    // // Value* dst = Builder.CreatePointerCast(alloc, ptr_type);
+    // Builder.CreateStore(neg_arg0, dst);
+    // // std::cout << "here 2\n";
+
+
+    // // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
+
+    // return alloc;
+  } else if (Callee == "print") {
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+
+    Value *arg0 = Args[0]->codegen(F);
+
+    arg0 = Builder.CreateLoad(vec_type, arg0);
+
+    // // // kprintf_str(m, bb, "[");
+    // // // kprintf_val(m, bb, arg0);
+    // // // kprintf_str(m, bb, "]");
+    // for (unsigned i = 0; i < size; ++i) {
+    //   cout << "i " << i << endl;
+    //   // Value* element_ptr = Builder.CreateGEP(arg0, {intConst(32, 0), intConst(32, i)});
+    //   // Value* element_i = Builder.CreateLoad(element_ptr);
+    //   Value* element_i = Builder.CreateExtractElement(arg0, i);
+    //   // Value* arg_i = Args[i] -> codegen(F);
+    //   kprintf_str(m, bb, "[");
+    //   kprintf_val(m, bb, element_i);
+    //   kprintf_str(m, bb, "]");
+    // }
+
+    // Value* neg_ones = Builder.CreateVectorSplat(size, intConst(32, -1));
+    // Value* neg_arg0 = Builder.CreateMul(arg0, neg_ones);
+    // auto alloc = Builder.CreateAlloca(vec_type);
+    // auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    // Builder.CreateStore(neg_arg0, dst);
+
+
+    // // codegen_print_array(type.dimensions, alloc, m, bb, 0, 0);
+
+    
+    // Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg0, m, bb, 0, 0);
+
+    return nullptr;
+  } else if (Callee == "reduce") {
+    // reduce(<array>)` - Turn an N dimensional array into an N-1 dimensional array by adding up all numbers in the innermost dimension
+
+    MiniAPLArrayType type = TypeTable[this];
+    const int size = type.Cardinality();
+    auto *vec_type = VectorType::get(intTy(32), size);
+    auto innermost = type.innermost_dimension;
+    auto *original_vec_type = VectorType::get(intTy(32), size * innermost);
+
+    Value *arg0 = Args[0]->codegen(F);
+    arg0 = Builder.CreateLoad(original_vec_type, arg0);
+
+    // for (int i=0;i<size;i++){
+    //   Value* element = Builder.CreateExtractElement(arg0, i);
+    //   element->print(llvm::outs());
+    // }
+
+    // auto dimension = type.dimensions.size();
+    // for (int i=0;i<dimension;i++){
+    //   cout << "dimension " << i << " " << type.dimensions[i] << endl;
+    // }
+    
+    // int new_size = size;
+    // auto *new_vec_type = VectorType::get(intTy(32), size);
+    auto alloc = Builder.CreateAlloca(vec_type);
+
+    cout << "size " << size << " innermost " << innermost << endl;
+
+    for (int i = 0; i < size; i++) {
+      Value *sum = intConst(32, 0);
+      for (int j = 0; j < innermost; j++) {
+        Value *element = Builder.CreateExtractElement(arg0, i * innermost + j);
+        // element->print(llvm::outs());
+        sum = Builder.CreateAdd(sum, element);
+        
+      }
+      auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, i)});
+      Builder.CreateStore(sum, dst);
+    }
+
+    // Value *sub = Builder.CreateSub(arg0, arg1);
+
+    // auto alloc = Builder.CreateAlloca(vec_type);
+    // auto dst = Builder.CreateGEP(alloc, {intConst(32, 0), intConst(32, 0)});
+    // Builder.CreateStore(sub, dst);
+
+    // codegen_print_array(type.dimensions, sub, m, bb, 0, 0);
+    Value* arg_print = Builder.CreateLoad(vec_type, alloc);
+    codegen_print_array(type.dimensions, arg_print, m, bb, 0, 0);
 
     return alloc;
   }
+  return nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -583,6 +957,7 @@ void SetType(map<ASTNode*, MiniAPLArrayType>& Types, ASTNode* Expr) {
       Types[Expr] = {Dims};
     } else if (Call->Callee == "reduce") {
       Types[Expr] = Types[Call->Args.back().get()];
+      Types[Expr].innermost_dimension = Types[Expr].dimensions[Types[Expr].dimensions.size() - 1];
       Types[Expr].dimensions.pop_back();
     } else if (Call->Callee == "add" || Call->Callee == "sub") {
       Types[Expr] = Types[Call->Args.at(0).get()];
