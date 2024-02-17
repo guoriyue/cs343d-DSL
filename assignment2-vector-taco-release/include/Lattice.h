@@ -32,6 +32,8 @@ struct MergeLattice {
 
     MergeLattice merge_intersection(const MergeLattice &other) const;
     MergeLattice merge_union(const MergeLattice &other) const;
+
+    // LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) const;
 };
 
 // class MergeLatticeVisitor {

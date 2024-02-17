@@ -15,18 +15,21 @@ SetExpr convert(const Expr &expr) {
     // Convert from CIN into Lowered SetExpr
     const ExprNode * n = expr.ptr.get();
     if (typeid(*n) == typeid(Add)) {
+        printf("Add\n");
         Add * a = (Add *)n;
         SetExpr add_union = SetExpr(Union::make(convert(a->a), convert(a->b)));
         return add_union;
     } else if (typeid(*n) == typeid(Mul)) {
-        // printf("Mul\n");
+        printf("Mul\n");
         Mul * m = (Mul *)n;
-        SetExpr mul_union = SetExpr(Union::make(convert(m->a), convert(m->b)));
+        SetExpr mul_union = SetExpr(Intersection::make(convert(m->a), convert(m->b)));
+        return mul_union;
     } else if (typeid(*n) == typeid(ArrayRead)) {
-        // printf("ArrayRead\n");
+        printf("ArrayRead\n");
         ArrayRead * ar = (ArrayRead *)n;
         // const std::shared_ptr<const ArrayRead> array_read = ;
         SetExpr sexpr = SetExpr(ArrayDim::make(ar->access));
+        printf("after ArrayRead\n");
         return sexpr;
     } else {
         printf("Unknown convert from CIN into Lowered SetExpr\n");
@@ -43,6 +46,7 @@ IndexStmt lower(const Assignment &assignment) {
     // return node;
     Expr rhs = assignment.rhs;
     SetExpr sexpr = convert(rhs);
+    printf("after convert\n");
     return ForAll::make(sexpr, ArrayAssignment::make(assignment.access, assignment.rhs));
     // std::shared_ptr<const IndexStmtNode> node;
     // if (typeid(rhs) == typeid(Add)) {
@@ -82,6 +86,28 @@ IndexStmt lower(const Assignment &assignment) {
 //     }
 // }
 
+LIR::Expr convert_lir(const Expr &expr, const FormatMap &formats) {
+    const ExprNode * n = expr.ptr.get();
+    if (typeid(*n) == typeid(Add)) {
+        printf("Add\n");
+        Add * a = (Add *)n;
+        LIR::Expr add_union = LIR::Expr(LIR::Add::make(convert_lir(a->a, formats), convert_lir(a->b, formats)));
+        return add_union;
+    } else if (typeid(*n) == typeid(Mul)) {
+        printf("Mul\n");
+        Mul * m = (Mul *)n;
+        LIR::Expr mul_union = LIR::Expr(LIR::Mul::make(convert_lir(m->a, formats), convert_lir(m->b, formats)));
+        return mul_union;
+    } else if (typeid(*n) == typeid(ArrayRead)) {
+        printf("ArrayRead\n");
+        ArrayRead * ar = (ArrayRead *)n;
+        LIR::Expr array_read = LIR::Expr(LIR::ArrayAccess::make(LIR::access_to_array_level(ar->access, formats)));
+        return array_read;
+    } else {
+        printf("Unknown convert from CIN into Lowered Expr\n");
+    }
+}
+
 LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
     // STUDENTS TODO:
     // assert(false);
@@ -93,6 +119,22 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
         printf("ForAll\n");
         const ForAll * fa = (ForAll *)n;
         MergeLattice lattice = MergeLattice::make(fa->sexpr, fa->body, formats);
+        lattice.add_body(fa->body, formats);
+        return lattice.lower();
+        // std::vector<LIR::Stmt> loops;
+        // printf("final points.size() = %d\n", lattice.points.size());
+        // // for (const auto &p : lattice.points) {
+        // //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+            
+        // //     IndexStmt body = p.body;
+        // //     // printf("before gather_iterator_set\n");
+        // //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
+        // //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
+        // //     whileStmt->accept(nullptr);
+        // //     // loops.push_back(LIR::Stmt(whileStmt));
+        // // }
+        // printf("return LIR::Stmt(LIR::SequenceStmt::make(loops));\n");
+        // return LIR::Stmt(LIR::SequenceStmt::make(loops));
         // return lattice.lower();
         // LIR::IteratorSet iset = gather_iterator_set(stmt, formats);
         // static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(fa->body, formats));
@@ -100,6 +142,13 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
         // return LIR::Stmt(whileStmt);
     } else if (typeid(*n) == typeid(ArrayAssignment)) {
         printf("ArrayAssignment\n");
+        const ArrayAssignment * aa = (ArrayAssignment *)n;
+        Access lhs = aa->lhs;
+        Expr rhs = aa->rhs;
+        LIR::ArrayLevel al = LIR::access_to_array_level(lhs, formats);
+        SetExpr sexpr = convert(rhs);
+        LIR::Expr lir_rhs = convert_lir(rhs, formats);
+        return LIR::Stmt(LIR::ArrayAssignment::make(al, lir_rhs));
         // Access lhs;
         // Expr rhs;
         // const ArrayAssignment * aa = (ArrayAssignment *)n;
@@ -116,6 +165,51 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
     } else {
         printf("Unknown\n");
     }
+
+
+// Stmt LowererImpl::lowerAssignment(Assignment assignment) {
+//   TensorVar result = assignment.getLhs().getTensorVar();
+
+//   if (generateComputeCode()) {
+//     Expr varIR = getTensorVar(result);
+//     Expr rhs = lower(assignment.getRhs());
+
+//     // Assignment to scalar variables.
+//     if (isScalar(result.getType())) {
+//       if (!assignment.getOperator().defined()) {
+//         return Assign::make(varIR, rhs);
+//       }
+//       else {
+//         taco_iassert(isa<taco::Add>(assignment.getOperator()));
+//         return Assign::make(varIR, ir::Add::make(varIR,rhs));
+//       }
+//     }
+//     // Assignments to tensor variables (non-scalar).
+//     else {
+//       Expr valueArray = GetProperty::make(varIR, TensorProperty::Values);
+//       return ir::Store::make(valueArray, generateValueLocExpr(assignment.getLhs()),
+//                            rhs);
+//       // When we're assembling while computing we need to allocate more
+//       // value memory as we write to the values array.
+//       if (generateAssembleCode()) {
+//         // TODO
+//       }
+//     }
+//   }
+//   // We're only assembling so defer allocating value memory to the end when
+//   // we'll know exactly how much we need.
+//   else if (generateAssembleCode()) {
+//     // TODO
+//     return Stmt();
+//   }
+//   // We're neither assembling or computing so we emit nothing.
+//   else {
+//     return Stmt();
+//   }
+//   taco_unreachable;
+//   return Stmt();
+// }
+
 
     // return LIR::Stmt();
     // Lower from CIN into Lowered Stmt

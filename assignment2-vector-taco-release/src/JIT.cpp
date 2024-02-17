@@ -36,8 +36,9 @@ void compile(const Assignment &assignment, const FormatMap &formats, const std::
 // Compiles into a temporary file and runs the corresponding test.
 void compile_and_test(const Assignment &assignment, const FormatMap &formats, const std::string &test_file) {
     IndexStmt stmt = lower(assignment);
-
+    printf("Lowered Stmt\n");
     LIR::Stmt lstmt = lower(stmt, formats);
+    printf("Lowered LIR Stmt\n");
     std::vector<std::string> arg_list = get_arg_list(stmt, formats);
     compile_and_test(lstmt, arg_list, test_file);
 }
