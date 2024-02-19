@@ -87,7 +87,7 @@ MergeLattice MergeLattice::merge_union(const MergeLattice &other) const {
     for (const auto &a : points) {
         for (const auto &b : other.points) {
             // all_points.push_back(a.merge_union(b));
-            all_points.push_back(a);
+            all_points.push_back(a.merge(b));
         }
     }
 
