@@ -17,8 +17,8 @@ struct MergePoint {
     // Whether this point dominates another point, useful for `MergeLattice::get_sub_points`.
     // Assumes both points contain only unique iterators.
     bool dominates(const MergePoint &point) const;
-    MergePoint merge_intersection(const MergePoint &other) const;
-    MergePoint merge_union(const MergePoint &other) const;
+    MergePoint merge(const MergePoint &other) const;
+    // MergePoint merge_union(const MergePoint &other) const;
 };
 
 struct MergeLattice {

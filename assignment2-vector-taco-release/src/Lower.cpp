@@ -109,6 +109,30 @@ LIR::Expr convert_lir(const Expr &expr, const FormatMap &formats) {
 }
 
 LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
+
+    struct BuildBodyStmt : public IRVisitor {
+        std::vector<LIR::Stmt> stmts;
+        const FormatMap &formats;
+        MergeLattice lattice;
+
+        BuildBodyStmt(const FormatMap &formats, MergeLattice lattice) : formats(formats), lattice(lattice) {}
+
+        void build(const IndexStmt &stmt) {
+            stmt.accept(this);
+        }
+
+        void visit(const Assignment &a) {
+            printf("BuildBodyStmt visit Assignment\n");
+            // stmts.push_back(lowerAssignment(a));
+        }
+
+        void visit(const ForAll &fa) {
+            printf("BuildBodyStmt visit ForAll\n");
+            // stmts.push_back(lowerForAll(fa));
+        }
+
+    };
+
     // STUDENTS TODO:
     // assert(false);
     // const SetExpr &sexpr, const IndexStmt &body, const FormatMap &formats
@@ -119,22 +143,102 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
         printf("ForAll\n");
         const ForAll * fa = (ForAll *)n;
         MergeLattice lattice = MergeLattice::make(fa->sexpr, fa->body, formats);
-        lattice.add_body(fa->body, formats);
-        return lattice.lower();
+        // lattice.add_body(fa->body, formats);
+
+        // As noted above, we provide a small C-like IR that can be used to implement co-iteration in LIR.h. We provide the printing to C interface in IRPrinter.h (this contains printing for the front-end code as well as the two IRs).
+
+        // In our example, the merge lattice has a single point: the intersection of B and C. This makes code generation quite simple. Let B be a Compressed array and C be a dense array.
+
+        // We would lower the example to a LIR::SequenceStmt that first defines iterators for each of the three arrays via 3 LIR::IteratorDefinitions, followed by a LIR::WhileStmt over the B and C iterators.
+
+        // uint64_t A_i = 0;
+        // uint64_t B_i_iter = B.pos[0];
+        // uint64_t C_i = 0;
+        // while ((B_i_iter < B.pos[1]) && (C_i < C.shape[0])) {
+        // ...
+        // }
+        std::vector<LIR::Stmt> code;
+        // Emit code to initialize pos variables:
+        LIR::IteratorSet iset = gather_iterator_set(stmt, formats);
+        code.push_back(LIR::Stmt(LIR::IteratorDefinition::make(iset)));
+
+        std::vector<LIR::Stmt> whileLoop;
+        // follow the IRVisitor pattern
+
+        BuildBodyStmt b = BuildBodyStmt(formats, lattice);
+        b.build(fa->body);
+
+
+        // // followed by a LIR::WhileStmt over the B and C iterators.
+        // for (const auto &p : lattice.points) {
+        //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+        //     // iterators name and format
+        //     // nice, only b and c
+        //     // for (const auto &a : iterators) {
+        //     //     printf("iterators: %s\n", a.name.c_str());
+        //     // }
+        //     code.push_back(LIR::Stmt(LIR::WhileStmt::make(iset, lower(p.body, formats))));
+        //     // LIR::IteratorSet iset = gather_iterator_set(p.body, formats);
+        //     // static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(p.body, formats));
+        //     // whileStmt->accept(nullptr);
+        //     // code.push_back(LIR::Stmt(whileStmt));
+        // }
+        // code.push_back(LIR::Stmt(LIR::WhileStmt::make(iset, lower(fa->body, formats))));
+
+        // The body of the LIR::WhileStmt needs to derive the logical index 
+        // of B by extracting it from B.crd, which is done with a LIR::CompressedIndexDefinition. 
+        // Next, the overall logical index must be computed by taking a min of the 
+        // logical indices we are iterating over.
+
+
+
+
+        // // return lattice.lower();
         // std::vector<LIR::Stmt> loops;
+        // // Emit one loop per lattice point lp
+        // for (const auto &lp : lattice.points) {
+        //     std::vector<LIR::ArrayLevel> iterators = lp.iterators;
+        //     IndexStmt body = lp.body;
+        //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
+        //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
+        //     whileStmt->accept(nullptr);
+        //     loops.push_back(LIR::Stmt(whileStmt));
+        // }
+
+        // // Emit code to initialize pos variables:
+        // // B2_pos = B2_pos_arr[B1_pos];
+        // for (const auto &p : lattice.points) {
+        //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+        //     for (const auto &a : iterators) {
+        //         loops.push_back(LIR::Stmt(LIR::ArrayAssignment::make(a, LIR::Expr(LIR::ArrayAccess::make(a)))));
+        //     }
+        // }
         // printf("final points.size() = %d\n", lattice.points.size());
-        // // for (const auto &p : lattice.points) {
-        // //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+
+        // for (const auto &p : lattice.points) {
+        //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
             
-        // //     IndexStmt body = p.body;
-        // //     // printf("before gather_iterator_set\n");
-        // //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
-        // //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
-        // //     whileStmt->accept(nullptr);
-        // //     // loops.push_back(LIR::Stmt(whileStmt));
-        // // }
-        // printf("return LIR::Stmt(LIR::SequenceStmt::make(loops));\n");
-        // return LIR::Stmt(LIR::SequenceStmt::make(loops));
+        //     IndexStmt body = p.body;
+        //     printf("before gather_iterator_set\n");
+        //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
+        //     printf("after gather_iterator_set\n");
+        //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
+        //     printf("after LIR::WhileStmt::make\n");
+        //     whileStmt->accept(nullptr);
+        //     loops.push_back(LIR::Stmt(whileStmt));
+        // }
+        // for (const auto &p : lattice.points) {
+        //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+            
+        //     IndexStmt body = p.body;
+        //     // printf("before gather_iterator_set\n");
+        //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
+        //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
+        //     whileStmt->accept(nullptr);
+        //     // loops.push_back(LIR::Stmt(whileStmt));
+        // }
+        printf("return LIR::Stmt(LIR::SequenceStmt::make(loops));\n");
+        return LIR::Stmt(LIR::SequenceStmt::make(code));
         // return lattice.lower();
         // LIR::IteratorSet iset = gather_iterator_set(stmt, formats);
         // static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(fa->body, formats));

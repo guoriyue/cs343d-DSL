@@ -18,7 +18,9 @@ int main(const int argc, const char** argv) {
         {"C", {Format::Compressed}},
     };
 
-    compile_and_test(a, formats, "tests/test0_runner.cpp");
+    compile(a, formats, "tests/test0_out.cpp");
+
+    // compile_and_test(a, formats, "tests/test0_runner.cpp");
 
     return 0;
 }

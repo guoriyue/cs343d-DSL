@@ -43,7 +43,7 @@ bool MergePoint::dominates(const MergePoint &point) const {
     return true;
 }
 
-MergePoint MergePoint::merge_intersection(const MergePoint &other) const {
+MergePoint MergePoint::merge(const MergePoint &other) const {
     std::vector<LIR::ArrayLevel> new_iterators;
     for (const auto &i : this->iterators) {
         new_iterators.push_back(i);
@@ -61,7 +61,7 @@ MergeLattice MergeLattice::merge_intersection(const MergeLattice &other) const {
     std::vector<MergePoint> new_points;
     for (const auto &a : points) {
         for (const auto &b : other.points) {
-            new_points.push_back(a.merge_intersection(b));
+            new_points.push_back(a.merge(b));
             // new_points.push_back(a);
         }
     }
@@ -120,100 +120,74 @@ MergeLattice MergeLattice::merge_union(const MergeLattice &other) const {
 }
 
 // LIR::Stmt MergeLattice::lower(const IndexStmt &stmt, const FormatMap &formats) const {
-    struct BuildMergeLatticeBody : public IRVisitor {
-        const FormatMap &formats;
-        std::vector<LIR::ArrayLevel> iterators;
-        LIR::Stmt body;
+//     struct BuildMergeLatticeBody : public IRVisitor {
+//         const FormatMap &formats;
+//         std::vector<LIR::ArrayLevel> iterators;
+//         LIR::Stmt body;
 
-        BuildMergeLatticeBody(const FormatMap &formats) : formats(formats) {}
+//         BuildMergeLatticeBody(const FormatMap &formats) : formats(formats) {}
 
-        LIR::Stmt build(const IndexStmt &stmt) {
-            stmt.accept(this);
-            LIR::Stmt b = body;
-            body = LIR::Stmt();
-            return b;
-        }
+//         LIR::Stmt build(const IndexStmt &stmt) {
+//             stmt.accept(this);
+//             LIR::Stmt b = body;
+//             body = LIR::Stmt();
+//             return b;
+//         }
 
-        using IRVisitor::visit;
+//         using IRVisitor::visit;
 
-        void visit(const Forall *op) override {
-            printf("Forall\n");
-            op->body.accept(this);
-        }
+//         void visit(const Forall *op) override {
+//             printf("Forall\n");
+//             op->body.accept(this);
+//         }
 
-        void visit(const ArrayDim *op) override {
-            printf("ArrayDim\n");
-            LIR::ArrayLevel iterator = LIR::access_to_array_level(op->access, formats);
-            iterators.push_back(iterator);
-            body = LIR::Stmt(LIR::WhileStmt::make(LIR::IteratorSet(), LIR::Stmt()));
-        }
+//         void visit(const ArrayDim *op) override {
+//             printf("ArrayDim\n");
+//             LIR::ArrayLevel iterator = LIR::access_to_array_level(op->access, formats);
+//             iterators.push_back(iterator);
+//             body = LIR::Stmt(LIR::WhileStmt::make(LIR::IteratorSet(), LIR::Stmt()));
+//         }
 
-        void visit(const Union *node) override {
-            printf("Union\n");
-            node->a.accept(this);
-            LIR::Stmt a_body = body;
-            node->b.accept(this);
-            LIR::Stmt b_body = body;
-            body = LIR::Stmt(LIR::SequenceStmt::make({a_body, b_body}));
-        }
+//         void visit(const Union *node) override {
+//             printf("Union\n");
+//             node->a.accept(this);
+//             LIR::Stmt a_body = body;
+//             node->b.accept(this);
+//             LIR::Stmt b_body = body;
+//             body = LIR::Stmt(LIR::SequenceStmt::make({a_body, b_body}));
+//         }
 
-        void visit(const Intersection *node) override {
-            printf("Intersection\n");
-            node->a.accept(this);
-            LIR::Stmt a_body = body;
-            node->b.accept(this);
-            LIR::Stmt b_body = body;
-            body = LIR::Stmt(LIR::SequenceStmt::make({a_body, b_body}));
-        }
-    };
-    // std::vector<LIR::Stmt> loops;
-    // for (const auto &p : points) {
-    //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
-    //     IndexStmt body = p.body;
-    //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
-    //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
-    //     whileStmt->accept(nullptr);
-    //     loops.push_back(LIR::Stmt(whileStmt));
-    // }
-    // return LIR::Stmt(LIR::SequenceStmt::make(loops));
-}
+//         void visit(const Intersection *node) override {
+//             printf("Intersection\n");
+//             node->a.accept(this);
+//             LIR::Stmt a_body = body;
+//             node->b.accept(this);
+//             LIR::Stmt b_body = body;
+//             body = LIR::Stmt(LIR::SequenceStmt::make({a_body, b_body}));
+//         }
+//     };
+//     // std::vector<LIR::Stmt> loops;
+//     // for (const auto &p : points) {
+//     //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+//     //     IndexStmt body = p.body;
+//     //     LIR::IteratorSet iset = gather_iterator_set(body, formats);
+//     //     static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, lower(body, formats));
+//     //     whileStmt->accept(nullptr);
+//     //     loops.push_back(LIR::Stmt(whileStmt));
+//     // }
+//     // return LIR::Stmt(LIR::SequenceStmt::make(loops));
+// }
 
-void MergeLattice::add_body(const IndexStmt &stmt, const FormatMap &formats) {
-    // "body" will always be an ArrayAssignment
+// void MergeLattice::add_body(const IndexStmt &stmt, const FormatMap &formats) {
+//     // "body" will always be an ArrayAssignment
 
-    // The IfStmt will be inside the body of the generated WhileStmt! For an example, see lines 17-19 of Figure 3 and lines 12-17 of Figure 9 in the original TACO paper. 
+//     // The IfStmt will be inside the body of the generated WhileStmt! For an example, see lines 17-19 of Figure 3 and lines 12-17 of Figure 9 in the original TACO paper. 
 
-    // I recommend generating the body of a mergepoint only after constructing the entire merge lattice - the body of each merge point will then just be the assignment simplified to remove any vectors that become zero (i.e. don't have an iterator in that point).
+//     // I recommend generating the body of a mergepoint only after constructing the entire merge lattice - the body of each merge point will then just be the assignment simplified to remove any vectors that become zero (i.e. don't have an iterator in that point).
 
-    // previously we only construct the ArrayLevel of MergePoint, now we need to construct the body of MergePoint
-    struct BuildMergeLatticeBody : public IRVisitor {
-        const FormatMap &formats;
-        std::vector<LIR::ArrayLevel> iterators;
-        LIR::Stmt body;
-
-        BuildMergeLatticeBody(const FormatMap &formats) : formats(formats) {}
-
-        LIR::Stmt build(const IndexStmt &stmt) {
-            stmt.accept(this);
-            LIR::Stmt b = body;
-            body = LIR::Stmt();
-            return b;
-        }
-
-        using IRVisitor::visit;
-
-        void visit(const ArrayAssignment *op) override {
-            printf("ArrayAssignment\n");
-            LIR::ArrayLevel iterator = LIR::access_to_array_level(op->lhs, formats);
-            iterators.push_back(iterator);
-            body = LIR::Stmt(LIR::WhileStmt::make(LIR::IteratorSet(), LIR::Stmt()));
-        }
-    };
-    std::vector<LIR::Stmt> loops;
-    for (const auto &p : points) {
-        p.body = BuildMergeLatticeBody(formats).build(p.body);
-    }
-}
+//     // previously we only construct the ArrayLevel of MergePoint, now we need to construct the body of MergePoint
+    
+// }
 
 MergeLattice MergeLattice::make(const SetExpr &sexpr, const IndexStmt &body, const FormatMap &formats) {
     
