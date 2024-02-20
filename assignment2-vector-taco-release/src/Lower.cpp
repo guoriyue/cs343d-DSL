@@ -128,6 +128,7 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
             // stmts.push_back(lower(op->body, formats));
             printf("LIR ForAll\n");
             MergeLattice lattice = MergeLattice::make(op->sexpr, op->body, formats);
+            // lattice.add_body(op->body, formats);
             // initializes
             std::vector<LIR::Stmt> code;
             code.push_back(LIR::Stmt(LIR::IteratorDefinition::make(LIR::IteratorSet{gather_iterator_set(op->body, formats)})));
@@ -137,6 +138,7 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
                 // for (const auto &a : iterators) {
                 //     printf("iterators: %s\n", a.name.c_str());
                 // }
+                // printf("iterators.size() = %d\n", iterators.size());
                 LIR::IteratorSet iset = LIR::IteratorSet{iterators};
                 std::vector<LIR::Stmt> cids;
                 // initialize sparse idx variables
@@ -170,7 +172,16 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
                     }
                     if (has_compressed) {
                         conditions.push_back(LIR::IteratorSet{equals});
-                        bodies.push_back(lower(op->body, formats));
+                        Expr rhs = lq.expr;
+                        IndexStmt lf = op->body;
+                        ArrayAssignment * aa = (ArrayAssignment *)lf.ptr.get();
+                        Access lhs = aa->lhs;
+                        IndexStmt new_body = ArrayAssignment::make(lhs, rhs);
+                        bodies.push_back(lower(new_body, formats));
+                        // Access lhs = Access(op->body->lhs.name, equals);
+                        // IndexStmt new_body = ArrayAssignment::make(op->access, op->rhs);
+                        // bodies.push_back(lower(op->body, formats));
+                        // bodies.push_back(lower(lq.body, formats));
                     }
                 }
 
@@ -193,10 +204,11 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
                 // Each while loop starts by loading (3) and merging (4) sparse idx variables.
                 // The resulting merged idx variable is the coordinate in the
                 // current index variable’s dimension.
-                LIR::Stmt whileLoopStart = LIR::Stmt(LIR::SequenceStmt::make(cids));
+                LIR::Stmt whileLoop = LIR::Stmt(LIR::SequenceStmt::make(cids));
                 // op->body.accept(this);
-                static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, whileLoopStart);
-                whileStmt->accept(this);
+                // printf("iset.size() = %d\n", iset.iterators.size());
+                static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, whileLoop);
+                // whileStmt->accept(this);
                 code.push_back(LIR::Stmt(whileStmt));
                 // # compute dense pos variables
                 // Dense pos variables (e.g., pB1) are then computed by adding the merged idx variable 

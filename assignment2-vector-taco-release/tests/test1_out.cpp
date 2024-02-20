@@ -15,10 +15,10 @@ while ((B_i_iter < B.pos[1]) && (C_i_iter < C.pos[1]) && (D_i_iter < D.pos[1])) 
     A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
   }
   else if ((B_i == i)) {
-    A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
+    A.values[i] = B.values[B_i_iter];
   }
   else if ((C_i == i) && (D_i == i)) {
-    A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
+    A.values[i] = (C.values[C_i_iter] * D.values[D_i_iter]);
   }
   B_i_iter += (i == B_i);
   C_i_iter += (i == C_i);
@@ -33,10 +33,10 @@ while ((B_i_iter < B.pos[1]) && (C_i_iter < C.pos[1]) && (D_i_iter < D.pos[1])) 
     A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
   }
   else if ((B_i == i)) {
-    A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
+    A.values[i] = B.values[B_i_iter];
   }
   else if ((C_i == i) && (D_i == i)) {
-    A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
+    A.values[i] = (C.values[C_i_iter] * D.values[D_i_iter]);
   }
   B_i_iter += (i == B_i);
   C_i_iter += (i == C_i);
@@ -51,10 +51,10 @@ while ((B_i_iter < B.pos[1]) && (C_i_iter < C.pos[1]) && (D_i_iter < D.pos[1])) 
     A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
   }
   else if ((B_i == i)) {
-    A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
+    A.values[i] = B.values[B_i_iter];
   }
   else if ((C_i == i) && (D_i == i)) {
-    A.values[i] = (B.values[B_i_iter] + (C.values[C_i_iter] * D.values[D_i_iter]));
+    A.values[i] = (C.values[C_i_iter] * D.values[D_i_iter]);
   }
   B_i_iter += (i == B_i);
   C_i_iter += (i == C_i);

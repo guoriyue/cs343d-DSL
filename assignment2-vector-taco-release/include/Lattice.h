@@ -13,11 +13,14 @@
 struct MergePoint {
     std::vector<LIR::ArrayLevel> iterators;
     IndexStmt body;
+    Expr expr;
 
     // Whether this point dominates another point, useful for `MergeLattice::get_sub_points`.
     // Assumes both points contain only unique iterators.
     bool dominates(const MergePoint &point) const;
     MergePoint merge(const MergePoint &other) const;
+
+    void add_body(const IndexStmt &body, const FormatMap &formats);
     // MergePoint merge_union(const MergePoint &other) const;
 };
 
@@ -32,7 +35,6 @@ struct MergeLattice {
 
     MergeLattice merge_intersection(const MergeLattice &other) const;
     MergeLattice merge_union(const MergeLattice &other) const;
-
     // LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) const;
 };
 

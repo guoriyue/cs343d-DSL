@@ -61,7 +61,9 @@ MergeLattice MergeLattice::merge_intersection(const MergeLattice &other) const {
     std::vector<MergePoint> new_points;
     for (const auto &a : points) {
         for (const auto &b : other.points) {
-            new_points.push_back(a.merge(b));
+            MergePoint p = a.merge(b);
+            p.expr = a.expr * b.expr;
+            new_points.push_back(p);
             // new_points.push_back(a);
         }
     }
@@ -87,7 +89,10 @@ MergeLattice MergeLattice::merge_union(const MergeLattice &other) const {
     for (const auto &a : points) {
         for (const auto &b : other.points) {
             // all_points.push_back(a.merge_union(b));
-            all_points.push_back(a.merge(b));
+            MergePoint p = a.merge(b);
+            p.expr = a.expr + b.expr;
+            all_points.push_back(p);
+            // all_points
         }
     }
 
@@ -222,7 +227,9 @@ MergeLattice MergeLattice::make(const SetExpr &sexpr, const IndexStmt &body, con
             printf("access name = %s\n", op->access.name.c_str());
             MergePoint latticePoint;
             latticePoint.iterators = std::vector<LIR::ArrayLevel>{iterator};
-            // latticePoint.body = ArrayAssignment::make(op->access, op->expr);
+            // latticePoint.body = ArrayAssignment::make(op->access, Expr());
+            Expr e = Expr(ArrayRead::make(op->access));
+            latticePoint.expr = e;
             MergeLattice l;
             l.points = std::vector<MergePoint>{latticePoint};
             lattice = l;
@@ -233,22 +240,22 @@ MergeLattice MergeLattice::make(const SetExpr &sexpr, const IndexStmt &body, con
             printf("Union\n");
             node->a.accept(this);
             MergeLattice a_lattice = lattice;
-            printf("a_lattice.points.size() = %d\n", a_lattice.points.size());
-            for (const auto &p : a_lattice.points) {
-                std::vector<LIR::ArrayLevel> iterators = p.iterators;
-                for (const auto &i : iterators) {
-                    printf("i.name = %s\n", i.name.c_str());
-                }
-            }
+            // printf("a_lattice.points.size() = %d\n", a_lattice.points.size());
+            // for (const auto &p : a_lattice.points) {
+            //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+            //     for (const auto &i : iterators) {
+            //         printf("i.name = %s\n", i.name.c_str());
+            //     }
+            // }
             node->b.accept(this);
             MergeLattice b_lattice = lattice;
-            printf("b_lattice.points.size() = %d\n", b_lattice.points.size());
-            for (const auto &p : b_lattice.points) {
-                std::vector<LIR::ArrayLevel> iterators = p.iterators;
-                for (const auto &i : iterators) {
-                    printf("i.name = %s\n", i.name.c_str());
-                }
-            }
+            // printf("b_lattice.points.size() = %d\n", b_lattice.points.size());
+            // for (const auto &p : b_lattice.points) {
+            //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+            //     for (const auto &i : iterators) {
+            //         printf("i.name = %s\n", i.name.c_str());
+            //     }
+            // }
             // ... now set lattice to be union of the two lattices.
             lattice = a_lattice.merge_union(b_lattice);
             // MergeLattice l = buildLattice(node->rhs);
@@ -261,22 +268,22 @@ MergeLattice MergeLattice::make(const SetExpr &sexpr, const IndexStmt &body, con
             // lattice = MergeLattice(l.getMergePoints(), {getIterator(node->lhs)});
             node->a.accept(this); // a and b are SetExprs
             MergeLattice a_lattice = lattice;
-            printf("a_lattice.points.size() = %d\n", a_lattice.points.size());
-            for (const auto &p : a_lattice.points) {
-                std::vector<LIR::ArrayLevel> iterators = p.iterators;
-                for (const auto &i : iterators) {
-                    printf("i.name = %s\n", i.name.c_str());
-                }
-            }
+            // printf("a_lattice.points.size() = %d\n", a_lattice.points.size());
+            // for (const auto &p : a_lattice.points) {
+            //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+            //     for (const auto &i : iterators) {
+            //         printf("i.name = %s\n", i.name.c_str());
+            //     }
+            // }
             node->b.accept(this);
             MergeLattice b_lattice = lattice;
-            printf("b_lattice.points.size() = %d\n", b_lattice.points.size());
-            for (const auto &p : b_lattice.points) {
-                std::vector<LIR::ArrayLevel> iterators = p.iterators;
-                for (const auto &i : iterators) {
-                    printf("i.name = %s\n", i.name.c_str());
-                }
-            }
+            // printf("b_lattice.points.size() = %d\n", b_lattice.points.size());
+            // for (const auto &p : b_lattice.points) {
+            //     std::vector<LIR::ArrayLevel> iterators = p.iterators;
+            //     for (const auto &i : iterators) {
+            //         printf("i.name = %s\n", i.name.c_str());
+            //     }
+            // }
             // ... now set lattice to be intersection of the two lattices.
             lattice = a_lattice.merge_intersection(b_lattice);
             printf("finish visit Intersection\n");
