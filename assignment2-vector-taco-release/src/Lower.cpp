@@ -126,7 +126,7 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
 
         void visit(const ForAll *op) {
             // stmts.push_back(lower(op->body, formats));
-            printf("ForAll\n");
+            printf("LIR ForAll\n");
             MergeLattice lattice = MergeLattice::make(op->sexpr, op->body, formats);
             // initializes
             std::vector<LIR::Stmt> code;
@@ -140,42 +140,52 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
                 LIR::IteratorSet iset = LIR::IteratorSet{iterators};
                 std::vector<LIR::Stmt> cids;
                 // initialize sparse idx variables
-                bool has_compressed = false;
+                // bool has_compressed = false;
                 for (const auto &a : iterators) {
                     if (a.format == Format::Compressed) {
                         cids.push_back(LIR::Stmt(LIR::CompressedIndexDefinition::make(a)));
-                        has_compressed = true;
+                        // has_compressed = true;
                     }
                 }
                 // LIR::Stmt compressedIndexDefinition = LIR::Stmt(LIR::CompressedIndexDefinition::make(iterators[0]));
-                if (has_compressed) {
-                    // code.push_back(LIR::Stmt(LIR::SequenceStmt::make(cids)));
-                    LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
-                    cids.push_back(mergedIdx);
-                }
+                // if (has_compressed) {
+                //     // code.push_back(LIR::Stmt(LIR::SequenceStmt::make(cids)));
+                //     LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
+                //     cids.push_back(mergedIdx);
+                // }
+                LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
+                cids.push_back(mergedIdx);
                 // LIR::SequenceStmt::make({compressedIndexDefinition, mergedIdx});
                 
                 std::vector<LIR::IteratorSet> conditions;
                 std::vector<LIR::Stmt> bodies;
                 for (const auto &lq : lattice.get_sub_points(p)) {
                     std::vector<LIR::ArrayLevel> equals;
+                    bool has_compressed = false;
                     for (const auto &a : lq.iterators) {
                         if (a.format == Format::Compressed) {
                             equals.push_back(a);
+                            has_compressed = true;
                         }
                     }
-                    conditions.push_back(LIR::IteratorSet{equals});
-                    bodies.push_back(lower(op->body, formats));
+                    if (has_compressed) {
+                        conditions.push_back(LIR::IteratorSet{equals});
+                        bodies.push_back(lower(op->body, formats));
+                    }
                 }
-                LIR::Stmt ifEqual = LIR::Stmt(LIR::IfStmt::make(conditions, bodies));
-                cids.push_back(ifEqual);
+
+                if (conditions.size() != 0) {
+                    LIR::Stmt ifEqual = LIR::Stmt(LIR::IfStmt::make(conditions, bodies));
+                    cids.push_back(ifEqual);
+                } else {
+                    cids.push_back(lower(op->body, formats));
+                }
+                
 
                 // increment
                 std::vector<LIR::Stmt> increments;
                 for (const auto &a : iterators) {
-                    if (a.format == Format::Compressed) {
-                        increments.push_back(LIR::Stmt(LIR::IncrementIterator::make(a)));
-                    }
+                    increments.push_back(LIR::Stmt(LIR::IncrementIterator::make(a)));
                 }
                 cids.push_back(LIR::Stmt(LIR::SequenceStmt::make(increments)));
                 // p.body = op->body;
@@ -202,12 +212,12 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
         }
 
         void visit(const LIR::WhileStmt *op) {
-            printf("whileStmt\n");
+            printf("LIR whileStmt\n");
             // stmts.push_back(LIR::Stmt(op));
         }
 
         void visit(const ArrayAssignment *aa) {
-            printf("ArrayAssignment\n");
+            printf("LIR ArrayAssignment\n");
             Access lhs = aa->lhs;
             Expr rhs = aa->rhs;
             LIR::ArrayLevel al = LIR::access_to_array_level(lhs, formats);

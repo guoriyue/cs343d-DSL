@@ -18,8 +18,8 @@ int main(const int argc, const char** argv) {
         {"C", {Format::Dense}},
     };
 
-    // compile_and_test(a, formats, "tests/test2_runner.cpp");
-    compile(a, formats, "tests/test2_out.cpp");
+    compile_and_test(a, formats, "tests/test2_runner.cpp");
+    // compile(a, formats, "tests/test2_out.cpp");
 
     return 0;
 }
