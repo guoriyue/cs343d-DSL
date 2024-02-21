@@ -138,86 +138,81 @@ LIR::Stmt lower(const IndexStmt &stmt, const FormatMap &formats) {
                 // for (const auto &a : iterators) {
                 //     printf("iterators: %s\n", a.name.c_str());
                 // }
-                printf("=================iterators.size() = %d\n", iterators.size());
+                // printf("iterators.size() = %d\n", iterators.size());
                 LIR::IteratorSet iset = LIR::IteratorSet{iterators};
-                static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, code.back());
+                std::vector<LIR::Stmt> cids;
+                // initialize sparse idx variables
+                // bool has_compressed = false;
+                for (const auto &a : iterators) {
+                    if (a.format == Format::Compressed) {
+                        cids.push_back(LIR::Stmt(LIR::CompressedIndexDefinition::make(a)));
+                        // has_compressed = true;
+                    }
+                }
+                // LIR::Stmt compressedIndexDefinition = LIR::Stmt(LIR::CompressedIndexDefinition::make(iterators[0]));
+                // if (has_compressed) {
+                //     // code.push_back(LIR::Stmt(LIR::SequenceStmt::make(cids)));
+                //     LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
+                //     cids.push_back(mergedIdx);
+                // }
+                LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
+                cids.push_back(mergedIdx);
+                // LIR::SequenceStmt::make({compressedIndexDefinition, mergedIdx});
+                
+                std::vector<LIR::IteratorSet> conditions;
+                std::vector<LIR::Stmt> bodies;
+                for (const auto &lq : lattice.get_sub_points(p)) {
+                    std::vector<LIR::ArrayLevel> equals;
+                    bool has_compressed = false;
+                    for (const auto &a : lq.iterators) {
+                        if (a.format == Format::Compressed) {
+                            equals.push_back(a);
+                            has_compressed = true;
+                        }
+                    }
+                    if (has_compressed) {
+                        conditions.push_back(LIR::IteratorSet{equals});
+                        Expr rhs = lq.expr;
+                        IndexStmt lf = op->body;
+                        ArrayAssignment * aa = (ArrayAssignment *)lf.ptr.get();
+                        Access lhs = aa->lhs;
+                        IndexStmt new_body = ArrayAssignment::make(lhs, rhs);
+                        bodies.push_back(lower(new_body, formats));
+                        // Access lhs = Access(op->body->lhs.name, equals);
+                        // IndexStmt new_body = ArrayAssignment::make(op->access, op->rhs);
+                        // bodies.push_back(lower(op->body, formats));
+                        // bodies.push_back(lower(lq.body, formats));
+                    }
+                }
+
+                if (conditions.size() != 0) {
+                    LIR::Stmt ifEqual = LIR::Stmt(LIR::IfStmt::make(conditions, bodies));
+                    cids.push_back(ifEqual);
+                } else {
+                    cids.push_back(lower(op->body, formats));
+                }
+                
+
+                // increment
+                std::vector<LIR::Stmt> increments;
+                for (const auto &a : iterators) {
+                    increments.push_back(LIR::Stmt(LIR::IncrementIterator::make(a)));
+                }
+                cids.push_back(LIR::Stmt(LIR::SequenceStmt::make(increments)));
+                // p.body = op->body;
+                // IndexStmt body = p.body;
+                // Each while loop starts by loading (3) and merging (4) sparse idx variables.
+                // The resulting merged idx variable is the coordinate in the
+                // current index variable’s dimension.
+                LIR::Stmt whileLoop = LIR::Stmt(LIR::SequenceStmt::make(cids));
+                // op->body.accept(this);
+                // printf("iset.size() = %d\n", iset.iterators.size());
+                std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, whileLoop);
                 // whileStmt->accept(this);
                 code.push_back(LIR::Stmt(whileStmt));
-                continue;
-
-                // std::vector<LIR::Stmt> cids;
-                // // initialize sparse idx variables
-                // // bool has_compressed = false;
-                // for (const auto &a : iterators) {
-                //     if (a.format == Format::Compressed) {
-                //         cids.push_back(LIR::Stmt(LIR::CompressedIndexDefinition::make(a)));
-                //         // has_compressed = true;
-                //     }
-                // }
-                // // LIR::Stmt compressedIndexDefinition = LIR::Stmt(LIR::CompressedIndexDefinition::make(iterators[0]));
-                // // if (has_compressed) {
-                // //     // code.push_back(LIR::Stmt(LIR::SequenceStmt::make(cids)));
-                // //     LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
-                // //     cids.push_back(mergedIdx);
-                // // }
-                // LIR::Stmt mergedIdx = LIR::Stmt(LIR::LogicalIndexDefinition::make(iset));
-                // cids.push_back(mergedIdx);
-                // // LIR::SequenceStmt::make({compressedIndexDefinition, mergedIdx});
-                
-                // std::vector<LIR::IteratorSet> conditions;
-                // std::vector<LIR::Stmt> bodies;
-                // for (const auto &lq : lattice.get_sub_points(p)) {
-                //     std::vector<LIR::ArrayLevel> equals;
-                //     bool has_compressed = false;
-                //     for (const auto &a : lq.iterators) {
-                //         if (a.format == Format::Compressed) {
-                //             equals.push_back(a);
-                //             has_compressed = true;
-                //         }
-                //     }
-                //     if (has_compressed) {
-                //         conditions.push_back(LIR::IteratorSet{equals});
-                //         Expr rhs = lq.expr;
-                //         IndexStmt lf = op->body;
-                //         ArrayAssignment * aa = (ArrayAssignment *)lf.ptr.get();
-                //         Access lhs = aa->lhs;
-                //         IndexStmt new_body = ArrayAssignment::make(lhs, rhs);
-                //         bodies.push_back(lower(new_body, formats));
-                //         // Access lhs = Access(op->body->lhs.name, equals);
-                //         // IndexStmt new_body = ArrayAssignment::make(op->access, op->rhs);
-                //         // bodies.push_back(lower(op->body, formats));
-                //         // bodies.push_back(lower(lq.body, formats));
-                //     }
-                // }
-
-                // if (conditions.size() != 0) {
-                //     LIR::Stmt ifEqual = LIR::Stmt(LIR::IfStmt::make(conditions, bodies));
-                //     cids.push_back(ifEqual);
-                // } else {
-                //     cids.push_back(lower(op->body, formats));
-                // }
-                
-
-                // // increment
-                // std::vector<LIR::Stmt> increments;
-                // for (const auto &a : iterators) {
-                //     increments.push_back(LIR::Stmt(LIR::IncrementIterator::make(a)));
-                // }
-                // cids.push_back(LIR::Stmt(LIR::SequenceStmt::make(increments)));
-                // // p.body = op->body;
-                // // IndexStmt body = p.body;
-                // // Each while loop starts by loading (3) and merging (4) sparse idx variables.
-                // // The resulting merged idx variable is the coordinate in the
-                // // current index variable’s dimension.
-                // LIR::Stmt whileLoop = LIR::Stmt(LIR::SequenceStmt::make(cids));
-                // // op->body.accept(this);
-                // // printf("iset.size() = %d\n", iset.iterators.size());
-                // static const std::shared_ptr<const LIR::WhileStmt> whileStmt = LIR::WhileStmt::make(iset, whileLoop);
-                // // whileStmt->accept(this);
-                // code.push_back(LIR::Stmt(whileStmt));
-                // // # compute dense pos variables
-                // // Dense pos variables (e.g., pB1) are then computed by adding the merged idx variable 
-                // // to the start of the variable’s corresponding tensor slice (5).
+                // # compute dense pos variables
+                // Dense pos variables (e.g., pB1) are then computed by adding the merged idx variable 
+                // to the start of the variable’s corresponding tensor slice (5).
             }
             stmts.push_back(LIR::Stmt(LIR::SequenceStmt::make(code)));
             // std::vector<LIR::Stmt> code;
